@@ -4,6 +4,7 @@ import { logger } from '../utils/logger';
 import { createRideSchema } from '../utils/validation';
 import mongoose from 'mongoose';
 import { getChannel } from '../utils/rabbitmq';
+import { BookingRequest } from '../model/bookingrequest'; // new model
 
 // Create a new ride
 export const createRide = async (req: Request, res: Response) => {
@@ -284,4 +285,32 @@ export const bookRide = async (req: Request, res: Response) => {
     } finally {
         session.endSession();
     }
+};
+
+
+
+export const getDriverRequests = async (req: Request, res: Response) => {
+  try {
+    const driverId = req.user?.userId;
+
+    if (!driverId) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+
+    // Find rides created by this driver
+    const driverRides = await Ride.find({ driverId }).select('_id');
+    const rideIds = driverRides.map(ride => ride._id);
+
+    // Find pending booking requests for these rides
+    const requests = await BookingRequest.find({
+      rideId: { $in: rideIds },
+      status: 'pending'
+    }).sort({ requestedAt: -1 });
+
+    return res.status(200).json({ success: true, data: requests });
+
+  } catch (err) {
+    console.error('Error fetching booking requests for driver:', err);
+    return res.status(500).json({ success: false, message: 'Server error' });
+  }
 };

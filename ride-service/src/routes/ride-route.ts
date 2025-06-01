@@ -1,6 +1,7 @@
 import { Router ,Request,Response } from "express";
-import { bookRide, createRide, deleteRide, getRideById, updateRide } from "../controller/ride-controller";
+import { bookRide, createRide, deleteRide, getDriverRequests, getRideById, updateRide } from "../controller/ride-controller";
 import { authenticateRequest } from "../middleware/authvalidate";
+import { Ride } from "../model/Ride";
 
 
 const Riderouter = Router();
@@ -56,4 +57,14 @@ Riderouter.post("/book/:id", async (req: Request, res: Response) => {
     }
 }
 );
+
+Riderouter.get('/driver/booking-request', async (req: Request, res: Response) => {
+    try{
+        await getDriverRequests(req, res);
+    }catch (error) {
+        res.status(500).json({ error: 'Internal server error' });
+    }
+}
+);
+
 export default Riderouter;
