@@ -7,6 +7,9 @@ import Redis from 'ioredis';
 import { RateLimiterRedis } from 'rate-limiter-flexible';
 import { RedisStore, RedisReply } from 'rate-limit-redis';
 import Riderouter from './routes/ride-route';
+import { connectRabbitMQ } from './utils/rabbitmq';
+import { consumeBookingRequests } from './consumer/bookingrequest';
+
 import dotenv from 'dotenv';
 dotenv.config();
 
@@ -90,9 +93,28 @@ app.use("/api/rides", Riderouter);
 app.use(errorHandler);
 
 // Start server
-app.listen(PORT, () => {
-  logger.info(`Ride service running on port ${PORT}`);
-});
+const start = async () => {
+  try {
+    // Connect to RabbitMQ
+    await connectRabbitMQ();
+    logger.info('✅ Connected to RabbitMQ');
+
+    // Start consuming booking requests
+    consumeBookingRequests();
+    logger.info('🚀 Booking request consumer started');
+
+    // Start the Express server only after RabbitMQ is ready
+    app.listen(PORT, () => {
+      logger.info(`🚗 Ride service running on port ${PORT}`);
+    });
+
+  } catch (error) {
+    logger.error('❌ Failed to start service:', error);
+    process.exit(1); // Gracefully exit on startup failure
+  }
+};
+
+start();
 
 // Unhandled promise rejection handler
 process.on('unhandledRejection', (reason, promise) => {

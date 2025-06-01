@@ -11,7 +11,7 @@ export const consumeBookingRequests = async () => {
     if (!msg) return;
 
     try {
-      const { rideId, passengerId, seats, timestamp } = JSON.parse(msg.content.toString());
+      const { rideId, passengerId, seats, status,timestamp } = JSON.parse(msg.content.toString());
 
       logger.info(`📩 Received booking request for ride ${rideId} from passenger ${passengerId}`);
 
@@ -34,7 +34,7 @@ export const consumeBookingRequests = async () => {
         rideId,
         passengerId,
         seats,
-        status: 'pending',
+        status: status || 'pending',
         requestedAt: timestamp || new Date(),
       });
 
