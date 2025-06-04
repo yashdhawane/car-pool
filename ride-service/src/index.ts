@@ -17,7 +17,7 @@ import { logger } from './utils/logger';
 import { errorHandler } from './middleware/errorhandler';
 
 const app = express();
-const PORT = process.env.PORT || 3002; // Different port from identity service
+const PORT = process.env.PORT || 3003; // Different port from identity service
 
 const mongo_url = process.env.MONGO_URI || 'mongodb://localhost:27017/ride-service';
 mongoose.connect(mongo_url)

@@ -13,7 +13,7 @@ import { validateToken } from './middleware/authvalidator';
 dotenv.config();
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3001;
 
 //connecting to redis client
 const redis_url = process.env.REDIS_URL || 'redis://localhost:6379';

@@ -15,7 +15,7 @@ import {errorHandler} from './middleware/errorhandler';
 
 
 const app = express();
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 3002;
 
 const mongo_url = process.env.MONGO_URI || 'mongodb://localhost:27017/identity-service';
 mongoose.connect(mongo_url)
