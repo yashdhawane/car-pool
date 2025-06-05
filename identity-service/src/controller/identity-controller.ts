@@ -5,6 +5,8 @@ import { signupSchema, loginSchema,roleChangeSchema } from '../utils/validation'
 import {logger} from '../utils/logger';
 import { Request, Response } from 'express';
 import Redis from 'ioredis';
+
+
 export const registerUser = async (req:Request, res:Response): Promise<Response> => {
   logger.info('Registration endpoint hit...');
 

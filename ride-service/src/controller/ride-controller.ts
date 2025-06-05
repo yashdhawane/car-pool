@@ -292,13 +292,27 @@ export const bookRide = async (req: Request, res: Response) => {
 export const getDriverRequests = async (req: Request, res: Response) => {
   try {
     const driverId = req.user?.userId;
+    const role = req.user?.role;
 
     if (!driverId) {
       return res.status(401).json({ success: false, message: 'Unauthorized' });
     }
 
+    if (role !== 'driver' && role !== 'both') {
+      return res.status(403).json({ success: false, message: 'Access denied' });
+    }
+
     // Find rides created by this driver
     const driverRides = await Ride.find({ driverId }).select('_id');
+
+    if (!driverRides.length) {
+      return res.status(200).json({ 
+        success: true, 
+        message: 'No rides found for this driver',
+        data: []
+      });
+    }
+    
     const rideIds = driverRides.map(ride => ride._id);
 
     // Find pending booking requests for these rides
