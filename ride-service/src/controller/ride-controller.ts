@@ -303,7 +303,7 @@ export const getDriverRequests = async (req: Request, res: Response) => {
     }
 
     // Find rides created by this driver
-    const driverRides = await Ride.find({ driverId }).select('_id');
+    const driverRides = await Ride.find({ driverId , status: 'available' }).select('_id');
 
     if (!driverRides.length) {
       return res.status(200).json({ 
@@ -328,3 +328,176 @@ export const getDriverRequests = async (req: Request, res: Response) => {
     return res.status(500).json({ success: false, message: 'Server error' });
   }
 };
+
+
+export const handleBookingRequest = async (req: Request, res: Response) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    const { requestId } = req.params;
+    const { status } = req.body; // status should be 'accepted' or 'rejected'
+    const driverId = req.user?.userId;
+
+    if (!driverId || (req.user?.role !== 'driver' && req.user?.role !== 'both')) {
+      return res.status(403).json({ 
+        success: false, 
+        message: 'Unauthorized - Only drivers can respond to booking requests' 
+      });
+    }
+
+    if (!['accepted', 'rejected'].includes(status)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid status. Must be either accepted or rejected'
+      });
+    }
+
+    // Find the booking request
+    const bookingRequest = await BookingRequest.findById(requestId).session(session);
+    if (!bookingRequest) {
+      await session.abortTransaction();
+      return res.status(404).json({
+        success: false,
+        message: 'Booking request not found'
+      });
+    }
+
+    // Verify the ride belongs to this driver
+    const ride = await Ride.findById(bookingRequest.rideId).session(session);
+    if (!ride || ride.driverId !== driverId) {
+      await session.abortTransaction();
+      return res.status(403).json({
+        success: false,
+        message: 'Not authorized to handle this booking request'
+      });
+    }
+
+     // Check if ride is already fully booked
+    if (ride.status === 'booked') {
+      await session.abortTransaction();
+      return res.status(400).json({
+        success: false,
+        message: 'Ride is already fully booked'
+      });
+    }
+
+    // Prepare message for queue
+    // const responsePayload = {
+    //   requestId: bookingRequest._id,
+    //   rideId: ride._id,
+    //   passengerId: bookingRequest.passengerId,
+    //   seats: bookingRequest.seats,
+    //   status,
+    //   respondedAt: new Date(),
+    //   driverId
+    // };
+
+    // // Send to appropriate queue based on status
+    // const channel = getChannel();
+    // const queue = `booking.${status}`;
+    // await channel.assertQueue(queue, { durable: true });
+    // channel.sendToQueue(queue, Buffer.from(JSON.stringify(responsePayload)));
+
+    // // Update booking request status
+    // bookingRequest.status = status;
+    // bookingRequest.respondedAt = new Date();
+    // await bookingRequest.save({ session });
+
+    // If accepted, update ride with passenger information
+    if (status === 'accepted') {
+      const totalBookedSeats = ride.passengers.reduce((sum, passenger) => sum + passenger.seats, 0);
+      
+      // Check if enough seats are still available
+      if (totalBookedSeats + bookingRequest.seats > ride.availableSeats) {
+        await session.abortTransaction();
+        return res.status(400).json({
+          success: false,
+          message: 'Not enough seats available'
+        });
+      }
+
+      // Add passenger to ride
+      ride.passengers.push({
+        userId: bookingRequest.passengerId,
+        seats: bookingRequest.seats,
+        bookingTime: new Date()
+      });
+
+      // Update ride status if all seats are now booked
+      if (totalBookedSeats + bookingRequest.seats === ride.availableSeats) {
+        ride.status = 'booked';
+
+        // Find all pending requests for this ride
+        const pendingRequests = await BookingRequest.find({
+          rideId: ride._id,
+          status: 'pending',
+          _id: { $ne: requestId }
+        }).session(session);
+
+         // Send notifications for rejected pending requests
+        const channel = getChannel();
+        await channel.assertQueue('notifications.booking', { durable: true });
+
+        // Notify all pending requesters
+        for (const request of pendingRequests) {
+          const notificationPayload = {
+            type: 'RIDE_FULLY_BOOKED',
+            userId: request.passengerId,
+            rideId: ride._id,
+            message: 'This ride is now fully booked'
+          };
+          
+          channel.sendToQueue(
+            'notifications.booking',
+            Buffer.from(JSON.stringify(notificationPayload))
+          );
+
+          // Update request status to rejected
+          request.status = 'rejected';
+          request.respondedAt = new Date();
+          await request.save({ session });
+      }
+
+    }
+    await ride.save({ session });
+}
+
+
+// Prepare notification for the current request
+    const notificationPayload = {
+      type: status === 'accepted' ? 'BOOKING_ACCEPTED' : 'BOOKING_REJECTED',
+      userId: bookingRequest.passengerId,
+      rideId: ride._id,
+      message: `Your booking request has been ${status}`
+    };
+
+    // Send notification
+    const channel = getChannel();
+    await channel.assertQueue('notifications.booking', { durable: true });
+    channel.sendToQueue(
+      'notifications.booking',
+      Buffer.from(JSON.stringify(notificationPayload))
+    );
+
+
+    await session.commitTransaction();
+
+    logger.info(`Booking request ${requestId}: ${status} by driver ${driverId}`);
+    return res.status(200).json({
+      success: true,
+      message: `Booking request ${status} successfully`,
+      data: ride.status === 'booked' ? 'Ride is now fully booked' : 'Booking request processed',
+    });
+
+  } catch (error) {
+    await session.abortTransaction();
+    logger.error('Error handling booking request:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to process booking request'
+    });
+  } finally {
+    session.endSession();
+  }
+};

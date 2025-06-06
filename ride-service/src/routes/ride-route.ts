@@ -1,5 +1,5 @@
 import { Router ,Request,Response } from "express";
-import { bookRide, createRide, deleteRide, getDriverRequests, getRideById, updateRide } from "../controller/ride-controller";
+import { bookRide, createRide, deleteRide, getDriverRequests, getRideById, handleBookingRequest, updateRide } from "../controller/ride-controller";
 import { authenticateRequest } from "../middleware/authvalidate";
 import { Ride } from "../model/Ride";
 
@@ -67,4 +67,14 @@ Riderouter.get('/driver/booking-request', async (req: Request, res: Response) =>
 }
 );
 
+
+Riderouter.patch('/booking-request/:requestId/respond', async (req: Request, res: Response) => {
+    try{
+        await handleBookingRequest(req, res);
+    }catch (error) {
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+// Export the router
 export default Riderouter;
