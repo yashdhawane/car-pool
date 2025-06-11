@@ -5,6 +5,8 @@ import { createRideSchema } from '../utils/validation';
 import mongoose from 'mongoose';
 import { getChannel } from '../utils/rabbitmq';
 import { BookingRequest } from '../model/bookingrequest'; // new model
+import { ConfirmedRide } from '../model/confirmride'; // new model
+import {redis} from '../config/redis'
 
 // Create a new ride
 export const createRide = async (req: Request, res: Response) => {
@@ -480,7 +482,8 @@ export const handleBookingRequest = async (req: Request, res: Response) => {
       Buffer.from(JSON.stringify(notificationPayload))
     );
 
-
+    // delete the booking request
+    await BookingRequest.findByIdAndDelete(requestId).session(session);
     await session.commitTransaction();
 
     logger.info(`Booking request ${requestId}: ${status} by driver ${driverId}`);
@@ -500,4 +503,135 @@ export const handleBookingRequest = async (req: Request, res: Response) => {
   } finally {
     session.endSession();
   }
-};
+};
+
+export const confirmRide = async (req: Request, res: Response) => {
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
+    try {
+        const { passengerId, otp } = req.body;
+        const { rideId } = req.params;
+        const driverId = req.user?.userId;
+
+        // Validate driver role
+        if (!driverId || (req.user?.role !== 'driver' && req.user?.role !== 'both')) {
+            return res.status(403).json({
+                success: false,
+                message: 'Only drivers can confirm rides'
+            });
+        }
+
+        // Validate rideId and passengerId
+        if (!rideId || !passengerId || !otp) {
+            return res.status(400).json({
+                success: false,
+                message: 'Missing rideId, passengerId or otp'
+            });
+        }
+
+        // Verify OTP
+        const redisKey = `ride:${rideId}:passenger:${passengerId}:otp`;
+        const storedOTP = await redis.get(redisKey);
+
+        if (!storedOTP || storedOTP !== otp) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid OTP'
+            });
+        }
+
+        // Fetch ride and verify passenger
+        const ride = await Ride.findById(rideId).session(session);
+        if (!ride) {
+            await session.abortTransaction();
+            return res.status(404).json({
+                success: false,
+                message: 'Ride not found'
+            });
+        }
+
+        const passengerBooking = ride.passengers.find(p => p.userId === passengerId);
+        if (!passengerBooking) {
+            await session.abortTransaction();
+            return res.status(404).json({
+                success: false,
+                message: 'Passenger not found in this ride'
+            });
+        }
+
+        // Save confirmed ride
+        const confirmedRide = new ConfirmedRide({
+            rideId: ride._id,
+            passengerId,
+            driverId,
+            source: ride.origin,
+            destination: ride.destination,
+            seats: passengerBooking.seats,
+            bookingTime: passengerBooking.bookingTime,
+            fare: ride.price * passengerBooking.seats,
+            status: 'started'
+        });
+
+        await confirmedRide.save({ session });
+
+        // Delete OTP from Redis
+        await redis.del(redisKey);
+
+        // Update passenger status
+        await Ride.updateOne(
+            { _id: rideId, 'passengers.userId': passengerId },
+            {
+                $set: {
+                    'passengers.$.confirmed': true,
+                    'passengers.$.confirmedAt': new Date()
+                }
+            },
+            { session }
+        );
+
+        // Send notification
+        const channel = getChannel();
+        await channel.assertQueue('notifications.booking', { durable: true });
+
+        const notificationPayload = {
+            type: 'RIDE_CONFIRMED',
+            userId: passengerId,
+            rideId: ride._id,
+            driverId,
+            message: 'Your ride has been confirmed and started',
+            confirmedRideId: confirmedRide._id
+        };
+
+        channel.sendToQueue(
+            'notifications.booking',
+            Buffer.from(JSON.stringify(notificationPayload))
+        );
+
+        await session.commitTransaction();
+
+        logger.info(`Ride confirmed for passenger ${passengerId} with driver ${driverId}`);
+        return res.status(200).json({
+            success: true,
+            message: 'Ride confirmed successfully',
+            data: {
+                confirmedRideId: confirmedRide._id,
+                rideDetails: {
+                    source: ride.origin,
+                    destination: ride.destination,
+                    fare: confirmedRide.fare
+                }
+            }
+        });
+
+    } catch (error) {
+        await session.abortTransaction();
+        logger.error('Error confirming ride:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Failed to confirm ride'
+        });
+    } finally {
+        session.endSession();
+    }
+};
