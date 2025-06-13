@@ -1,4 +1,5 @@
 // models/BookingRequest.ts
+import { required } from 'joi';
 import mongoose, { Schema, Document } from 'mongoose';
 
 export interface IBookingRequest extends Document {
@@ -6,6 +7,8 @@ export interface IBookingRequest extends Document {
   passengerId: string;
   seats: number;
   status: 'pending' | 'accepted' | 'rejected';
+  email: string;
+  name: string; // Optional field for passenger's name
   requestedAt: Date;
   respondedAt?: Date;
 }
@@ -19,6 +22,8 @@ const BookingRequestSchema = new Schema({
     enum: ['pending', 'accepted', 'rejected'],
     default: 'pending',
   },
+  email: { type: String, required: true },
+  name: { type: String,required:true }, // Optional field for passenger's name
   requestedAt: { type: Date, default: Date.now },
   respondedAt: { type: Date },
 }, {

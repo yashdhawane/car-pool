@@ -6,7 +6,8 @@ export const generateTokens = async (user:any) => {
   const accessToken = jwt.sign(
     {
       userId: user._id,
-      username: user.username,
+      email: user.email,
+      name: user.name,
       role: user.role, // optional: include role if needed
     },
     process.env.JWT_SECRET || 'default_secret_key',

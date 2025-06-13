@@ -2,10 +2,19 @@ import jwt from 'jsonwebtoken';
 import {Request, Response, NextFunction} from 'express';
 import {logger} from '@/utils/logger';
 
+
+interface AuthenticatedUser {
+  userId: string;
+  email: string;
+  name: string;
+  role: string;
+}
+
+
 declare global {
   namespace Express {
     interface Request {
-      user?: any;
+      user?: AuthenticatedUser;
     }
   }
 }
@@ -32,7 +41,7 @@ export const validateToken = (req:Request, res:Response, next:NextFunction) => {
     });
   }
 
-  jwt.verify(token, jwtSecret, (err, user:any) => {
+  jwt.verify(token, jwtSecret, (err, decoded:any) => {
     if (err) {
       logger.warn(`Invalid token from IP: ${req.ip} | Error: ${err.message}`);
       return res.status(403).json({
@@ -41,9 +50,23 @@ export const validateToken = (req:Request, res:Response, next:NextFunction) => {
         error: err.message,
       });
     }
+    // Validate that the decoded token has all required fields
+    if (!decoded.userId || !decoded.email || !decoded.name || !decoded.role) {
+      logger.warn(`Incomplete user data in token from IP: ${req.ip}`);
+      return res.status(403).json({
+        success: false,
+        message: 'Invalid token format',
+      });
+    }
 
-    req.user = user;
-    logger.debug(`Token validated for user: ${user?.id || 'unknown'} from IP: ${req.ip}`);
+     req.user = {
+      userId: decoded.userId,
+      email: decoded.email,
+      name: decoded.name,
+      role: decoded.role
+    };
+
+     logger.debug(`Token validated for user: ${req.user.name} (${req.user.userId}) from IP: ${req.ip}`);
     return next();
   });
 };

@@ -214,10 +214,14 @@ export const bookRide = async (req: Request, res: Response) => {
             });
         }
 
+        logger.info(`Email: ${req.user.email} | Name: ${req.user.name} | UserId: ${req.user.userId}`);
+
           const bookingPayload = {
       rideId,
       passengerId: req.user.userId,
       seats,
+      passengerName: req.user.name,
+      passengerEmail: req.user.email,
       status: 'pending',
       timestamp: new Date(),
     };
@@ -375,6 +379,8 @@ export const handleBookingRequest = async (req: Request, res: Response) => {
       });
     }
 
+
+
      // Check if ride is already fully booked
     if (ride.status === 'booked') {
       await session.abortTransaction();
@@ -383,6 +389,11 @@ export const handleBookingRequest = async (req: Request, res: Response) => {
         message: 'Ride is already fully booked'
       });
     }
+
+     // Update booking request status
+    bookingRequest.status = status;
+    bookingRequest.respondedAt = new Date();
+    await bookingRequest.save({ session });
 
     // Prepare message for queue
     // const responsePayload = {
@@ -419,10 +430,20 @@ export const handleBookingRequest = async (req: Request, res: Response) => {
         });
       }
 
+       if (!bookingRequest.name || !bookingRequest.email) {
+            await session.abortTransaction();
+            return res.status(400).json({
+                success: false,
+                message: 'Passenger name and email are required'
+            });
+        }
+
       // Add passenger to ride
       ride.passengers.push({
         userId: bookingRequest.passengerId,
         seats: bookingRequest.seats,
+        name: bookingRequest.name,
+        email: bookingRequest.email,
         bookingTime: new Date()
       });
 
@@ -443,10 +464,16 @@ export const handleBookingRequest = async (req: Request, res: Response) => {
 
         // Notify all pending requesters
         for (const request of pendingRequests) {
+            request.status = 'rejected'; // Reject all other pending requests
+            request.respondedAt = new Date();
           const notificationPayload = {
             type: 'RIDE_FULLY_BOOKED',
             userId: request.passengerId,
             rideId: ride._id,
+            email: request.email,
+            departuretime: ride.departureTime.toISOString(),
+            source:ride.origin.address,
+            destination: ride.destination.address,
             message: 'This ride is now fully booked'
           };
           
@@ -455,10 +482,10 @@ export const handleBookingRequest = async (req: Request, res: Response) => {
             Buffer.from(JSON.stringify(notificationPayload))
           );
 
-          // Update request status to rejected
-          request.status = 'rejected';
-          request.respondedAt = new Date();
-          await request.save({ session });
+        //   // Update request status to rejected
+        //   request.status = 'rejected';  // in future i want to delete the request after sening the mail to user
+        //   request.respondedAt = new Date();
+        //   await request.save({ session });
       }
 
     }
@@ -471,6 +498,11 @@ export const handleBookingRequest = async (req: Request, res: Response) => {
       type: status === 'accepted' ? 'BOOKING_ACCEPTED' : 'BOOKING_REJECTED',
       userId: bookingRequest.passengerId,
       rideId: ride._id,
+      email: bookingRequest.email,
+      source: ride.origin.address,
+      destination: ride.destination.address,
+      departureTime: ride.departureTime.toISOString(),
+      seats: bookingRequest.seats,
       message: `Your booking request has been ${status}`
     };
 
@@ -483,7 +515,7 @@ export const handleBookingRequest = async (req: Request, res: Response) => {
     );
 
     // delete the booking request
-    await BookingRequest.findByIdAndDelete(requestId).session(session);
+    // await BookingRequest.findByIdAndDelete(requestId).session(session);
     await session.commitTransaction();
 
     logger.info(`Booking request ${requestId}: ${status} by driver ${driverId}`);

@@ -53,6 +53,8 @@ export interface IRide extends Document {
         userId: string;
         bookingTime: Date;
         seats: number;
+        name: string;
+        email: string;  // Basic email validation can be added later
     }>;
     createdAt: Date;
     updatedAt?: Date;
@@ -73,6 +75,8 @@ const LocationSchema = new Schema({
 
 const PassengerSchema = new Schema({
     userId: { type: String, required: true },
+    name: { type: String, required: true },
+    email: { type: String, required: true, match: /.+\@.+\..+/ }, // Basic email validation
     bookingTime: { type: Date, default: Date.now },
     seats: { type: Number, required: true, min: 1 }
 }, { _id: false });

@@ -110,6 +110,12 @@ app.use(
       proxyReqOpts.headers["x-user-id"] = srcReq.user.userId;
       //@ts-ignore
       proxyReqOpts.headers["x-user-role"] = srcReq.user.role;
+      //@ts-ignore
+      proxyReqOpts.headers["x-user-email"] = srcReq.user.email;
+      //@ts-ignore
+      proxyReqOpts.headers["x-user-name"] = srcReq.user.name;
+      
+
       return proxyReqOpts;
     },
     userResDecorator: (proxyRes, proxyResData, userReq, userRes) => {

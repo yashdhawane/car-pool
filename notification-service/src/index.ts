@@ -10,11 +10,15 @@ async function startService() {
     const emailService = new EmailService({
       host: process.env.SMTP_HOST || "smtp.gmail.com",
       port: Number(process.env.SMTP_PORT),
-      secure: process.env.SMTP_SECURE === "false", // true for 465, false for other ports
+      secure: process.env.SMTP_SECURE === "true", // true for 465, false for other ports
       auth: {
         user: process.env.SMTP_USER || 'email@gmail.com',
         pass: process.env.SMTP_PASS || 'password',
-      }
+      },
+      tls: {
+        rejectUnauthorized: false // Allow self-signed certificates
+      },
+      
     });
 
     const notificationService = new NotificationService(emailService);

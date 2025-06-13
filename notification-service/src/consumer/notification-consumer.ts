@@ -69,6 +69,7 @@ export class NotificationService {
 
     await this.emailService.sendEmail(
       notification.email,
+      
       'Ride Booking Confirmed',
       `
         <h2>Your ride booking has been confirmed!</h2>
@@ -88,7 +89,7 @@ export class NotificationService {
   private async handleRejectedBooking(notification: NotificationPayload) {
     await this.emailService.sendEmail(
       notification.email,
-      'Ride Booking Update',
+      'Ride Booking Rejected',
       `
         <h2>Booking Update</h2>
         <p>Unfortunately, your ride booking was not confirmed.</p>

@@ -18,4 +18,7 @@ export interface EmailConfig {
     user: string;
     pass: string;
   }
+  tls?: {
+    rejectUnauthorized: boolean;
+  }
 }
