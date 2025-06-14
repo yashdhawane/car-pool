@@ -466,6 +466,7 @@ export const handleBookingRequest = async (req: Request, res: Response) => {
         for (const request of pendingRequests) {
             request.status = 'rejected'; // Reject all other pending requests
             request.respondedAt = new Date();
+            await request.save({ session });
           const notificationPayload = {
             type: 'RIDE_FULLY_BOOKED',
             userId: request.passengerId,
