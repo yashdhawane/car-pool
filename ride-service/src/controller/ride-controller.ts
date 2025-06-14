@@ -538,6 +538,83 @@ export const handleBookingRequest = async (req: Request, res: Response) => {
   }
 };
 
+
+export const generateRideOTP = async (req: Request, res: Response) => {
+    try {
+        const { rideId } = req.params;
+        const { passengerId } = req.body;
+        const driverId = req.user?.userId;
+
+        // Validate driver role
+        if (!driverId || (req.user?.role !== 'driver' && req.user?.role !== 'both')) {
+            return res.status(403).json({
+                success: false,
+                message: 'Only drivers can generate OTP'
+            });
+        }
+
+        // Validate ride and passenger
+        const ride = await Ride.findById(rideId);
+        if (!ride) {
+            return res.status(404).json({
+                success: false,
+                message: 'Ride not found'
+            });
+        }
+
+        const passengerBooking = ride.passengers.find(p => p.userId === passengerId);
+        if (!passengerBooking) {
+            return res.status(404).json({
+                success: false,
+                message: 'Passenger not found in this ride'
+            });
+        }
+
+        // Generate OTP
+        const otp = Math.floor(100000 + Math.random() * 900000).toString();
+        const redisKey = `ride${rideId}passenger${passengerId}otp`;
+        
+        // Store OTP in Redis with 5 minutes expiry
+        await redis.set(redisKey, otp, 'EX', 300);
+
+      
+
+        // Send OTP via email
+        const channel = getChannel();
+        await channel.assertQueue('notifications.booking', { durable: true });
+
+        const emailPayload = {
+            type: 'RIDE_OTP',
+            userId: passengerId,
+            email: passengerBooking.email,
+            subject: 'Your Ride OTP',
+            message: `Your OTP for ride confirmation is: ${otp}. Valid for 5 minutes.`,
+            source: ride.origin.address,
+            destination: ride.destination.address,
+            departureTime: ride.departureTime.toISOString(),
+            seats: passengerBooking.seats,
+        };
+
+        channel.sendToQueue(
+            'notifications.booking',
+            Buffer.from(JSON.stringify(emailPayload))
+        );
+
+        logger.info(`OTP generated and sent for ride ${rideId} to passenger ${passengerId}`);
+        return res.status(200).json({
+            success: true,
+            message: 'OTP sent to passenger successfully'
+        });
+
+    } catch (error) {
+        logger.error('Error generating OTP:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Failed to generate OTP'
+        });
+    }
+};
+
 export const confirmRide = async (req: Request, res: Response) => {
     const session = await mongoose.startSession();
     session.startTransaction();
@@ -564,7 +641,7 @@ export const confirmRide = async (req: Request, res: Response) => {
         }
 
         // Verify OTP
-        const redisKey = `ride:${rideId}:passenger:${passengerId}:otp`;
+        const redisKey = `ride${rideId}passenger${passengerId}otp`;
         const storedOTP = await redis.get(redisKey);
 
         if (!storedOTP || storedOTP !== otp) {
@@ -630,10 +707,13 @@ export const confirmRide = async (req: Request, res: Response) => {
         const notificationPayload = {
             type: 'RIDE_CONFIRMED',
             userId: passengerId,
+            email: passengerBooking.email,
+            source: ride.origin.address,
+            destination: ride.destination.address,
+            departureTime: ride.departureTime.toISOString(),
             rideId: ride._id,
-            driverId,
             message: 'Your ride has been confirmed and started',
-            confirmedRideId: confirmedRide._id
+            seats: passengerBooking.seats
         };
 
         channel.sendToQueue(

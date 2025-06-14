@@ -43,6 +43,12 @@ export class NotificationService {
   }
 
   private async processNotification(notification: NotificationPayload) {
+    logger.info(`Processing notification: ${notification.type} for user ${notification.userId}`);
+
+    if (!notification.email) {
+      logger.warn(`No email provided for notification type: ${notification.type}`);
+      return;
+    }
     switch (notification.type) {
       case 'BOOKING_ACCEPTED':
         await this.handleAcceptedBooking(notification);
@@ -53,9 +59,49 @@ export class NotificationService {
       case 'RIDE_FULLY_BOOKED':
         await this.handleFullyBookedRide(notification);
         break;
+      case 'RIDE_OTP':
+        await this.handleOTP(notification);
+        break;
+      case 'RIDE_CONFIRMED':
+        await this.handleconfirmation(notification);
+        break;
     }
   }
 
+  private async handleconfirmation(notification: NotificationPayload) {
+    await this.emailService.sendEmail(
+      notification.email,
+      'Ride Confirmation',
+      `
+        <h2>Your ride has been confirmed! and started</h2>
+        <p>Ride Details:</p>
+        <ul>
+          <li>From: ${notification.source}</li>
+          <li>To: ${notification.destination}</li>
+          <li>Date: ${notification.departureTime}</li>
+          <li>Seats: ${notification.seats}</li>
+        </ul>
+        <p>Thank you for choosing our service!</p>
+      `
+    )}
+    
+  private async handleOTP (notification: NotificationPayload) {
+    await this.emailService.sendEmail(
+      notification.email,
+      'Your OTP for the Ride',
+      `
+        <h2>${notification.message}</h2>
+        <p>Please share this OTP with your driver when you meet.</p>
+        <p>Ride Details:</p>
+        <ul>
+          <li>From: ${notification.source}</li>
+          <li>To: ${notification.destination}</li>
+          <li>Date: ${notification.departureTime}</li>
+          <li>Seats: ${notification.seats}</li>
+        </ul>
+      `);
+  
+  }
   private async handleAcceptedBooking(notification: NotificationPayload) {
 //     const otp = this.generateOTP();
 //     const redisKey = `ride${notification.rideId}passenger${notification.userId}otp`;

@@ -16,11 +16,11 @@ const confirmedRideSchema = new mongoose.Schema({
         required: true
     },
     source: {
-        type: String,
+        type: Object,
         required: true
     },
     destination: {
-        type: String,
+        type: Object,
         required: true
     },
     seats: {

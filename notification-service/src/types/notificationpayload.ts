@@ -1,5 +1,5 @@
 export interface NotificationPayload {
-  type: 'BOOKING_ACCEPTED' | 'BOOKING_REJECTED' | 'RIDE_FULLY_BOOKED';
+  type: 'BOOKING_ACCEPTED' | 'BOOKING_REJECTED' | 'RIDE_FULLY_BOOKED' | 'RIDE_OTP' | 'RIDE_CONFIRMED';
   userId: string;
   rideId: string;
   email: string;

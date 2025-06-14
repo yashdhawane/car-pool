@@ -1,5 +1,5 @@
 import { Router ,Request,Response } from "express";
-import { bookRide, confirmRide, createRide, deleteRide, getDriverRequests, getRideById, handleBookingRequest, updateRide } from "../controller/ride-controller";
+import { bookRide, confirmRide, createRide, deleteRide, generateRideOTP, getDriverRequests, getRideById, handleBookingRequest, updateRide } from "../controller/ride-controller";
 import { authenticateRequest } from "../middleware/authvalidate";
 import { Ride } from "../model/Ride";
 
@@ -76,6 +76,13 @@ Riderouter.patch('/booking-request/:requestId/respond', async (req: Request, res
     }
 });
 
+Riderouter.post('/:rideId/generate-otp', async (req: Request, res: Response) => {
+    try {
+        await generateRideOTP(req, res);
+    }catch (error) {
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
 
 Riderouter.post('/confirmotp/:rideId', async (req: Request, res: Response) => {
     try {
