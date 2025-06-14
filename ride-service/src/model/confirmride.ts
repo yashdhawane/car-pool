@@ -1,5 +1,18 @@
 // src/model/confirmedRide.ts
-import mongoose from 'mongoose';
+import mongoose ,{Schema}from 'mongoose';
+
+const LocationSchema = new Schema({
+    address: { type: String, required: true },
+    city: { type: String, required: true },
+    coordinates: {
+        type: [Number],
+        required: true,
+        validate: {
+            validator: (v: number[]) => v.length === 2,
+            message: 'Coordinates must be [longitude, latitude]'
+        }
+    }
+}, { _id: false });
 
 const confirmedRideSchema = new mongoose.Schema({
     rideId: {
@@ -16,11 +29,11 @@ const confirmedRideSchema = new mongoose.Schema({
         required: true
     },
     source: {
-        type: Object,
+        type: LocationSchema,  // Changed from Object to LocationSchema
         required: true
     },
     destination: {
-        type: Object,
+        type: LocationSchema,  // Changed from Object to LocationSchema
         required: true
     },
     seats: {

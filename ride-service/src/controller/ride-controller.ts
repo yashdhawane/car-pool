@@ -675,8 +675,16 @@ export const confirmRide = async (req: Request, res: Response) => {
             rideId: ride._id,
             passengerId,
             driverId,
-            source: ride.origin,
-            destination: ride.destination,
+            source: {
+                address: ride.origin.address,
+                city: ride.origin.city,
+                coordinates: ride.origin.coordinates
+            },
+            destination: {
+                address: ride.destination.address,
+                city: ride.destination.city,
+                coordinates: ride.destination.coordinates
+            },
             seats: passengerBooking.seats,
             bookingTime: passengerBooking.bookingTime,
             fare: ride.price * passengerBooking.seats,
