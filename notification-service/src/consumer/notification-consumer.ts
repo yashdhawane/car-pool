@@ -58,14 +58,34 @@ export class NotificationService {
 
   private async handleAcceptedBooking(notification: NotificationPayload) {
     const otp = this.generateOTP();
-    
+    const redisKey = `ride${notification.rideId}passenger${notification.userId}otp`;
+
+    logger.info(`Generating OTP for ride: ${notification.rideId}, passenger: ${notification.userId}`);
+    logger.info(`Redis key: ${redisKey}`);
+
     // Store OTP in Redis with 24 hour expiry
-    await this.redis.set(
-      `ride:${notification.rideId}:passenger:${notification.userId}:otp`,
-      otp,
-      'EX',
-      24 * 60 * 60
-    );
+   const result = await this.redis.setex(
+  redisKey,
+  24 * 60 * 60, // 24 hours in seconds
+  otp
+);
+
+      if (result !== 'OK') {
+            throw new Error(`Failed to store OTP in Redis. Result: ${result}`);
+        }
+
+    const storedOTP = await this.redis.get(redisKey);
+    logger.info(`OTP stored in Redis: ${storedOTP}`);
+    logger.info(`Stored OTP verification: ${storedOTP === otp ? 'Success' : 'Failed'}`);
+        
+        
+    // // Store OTP in Redis with 24 hour expiry
+    // await this.redis.set(
+    //   `ride:${notification.rideId}:passenger:${notification.userId}:otp`,
+    //   otp,
+    //   'EX',
+    //   24 * 60 * 60
+    // );
 
     await this.emailService.sendEmail(
       notification.email,
