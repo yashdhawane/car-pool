@@ -27,7 +27,7 @@ export const registerUser = async (req:Request, res:Response): Promise<Response>
     let user = await User.findOne({ $or: [{ email }, { name }] });
     if (user) {
       logger.warn('User already exists');
-      return res.status(400).json({
+      return res.status(409).json({
         success: false,
         message: 'User already exists',
       });
