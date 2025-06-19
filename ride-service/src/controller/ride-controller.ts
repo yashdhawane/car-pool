@@ -58,6 +58,53 @@ export const createRide = async (req: Request, res: Response) => {
     }
 };
 
+export const getallrides = async (req:Request,res:Response) => {
+    const {from,to,date,seats}=req.query;
+
+    const cachekey = `ride${from}to${to}date${date}`
+    try{
+        const cached=await redis.get(cachekey);
+        if(cached){
+            logger.info('Serving rides from cache')
+            return res.json(JSON.parse(cached))
+        }
+
+        const query:any={
+            status:'available'
+        };
+
+        if(from){
+            query['origin.city']={ $regex: new RegExp(String(from), 'i') };
+        }
+        if(to){
+            query['destination.city'] = { $regex: new RegExp(String(to), 'i') };
+        }
+        if(date){
+            const day = new Date(String(date));
+            const nextDay=new Date(day);
+            nextDay.setDate(day.getDate()+1);
+
+            query.departureTime={
+                $gte:day,
+                $lt:nextDay
+            };
+        }
+
+        if(seats){
+            query.availableSeats ={ $gte:Number(seats)};
+        }
+
+        const rides = await Ride.find(query)
+        .sort({departureTime:1})
+        .select('-passengers');
+
+        await redis.setex(cachekey,300,JSON.stringify(rides));
+        res.json(rides);
+    }catch(error){
+        logger.error(`error fetching rides`,error);
+        res.status(500).json({success:false,message:'Error fetching data'})
+    }
+}
 // Update ride details
 export const updateRide = async (req: Request, res: Response) => {
     logger.info(`Updating ride with ID: ${req.params.id}`);

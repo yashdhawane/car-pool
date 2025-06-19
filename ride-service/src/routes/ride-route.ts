@@ -1,5 +1,5 @@
 import { Router ,Request,Response } from "express";
-import { bookRide, confirmRide, createRide, deleteRide, generateRideOTP, getDriverRequests, getRideById, handleBookingRequest, updateRide } from "../controller/ride-controller";
+import { bookRide, confirmRide, createRide, deleteRide, generateRideOTP, getallrides, getDriverRequests, getRideById, handleBookingRequest, updateRide } from "../controller/ride-controller";
 import { authenticateRequest } from "../middleware/authvalidate";
 import { Ride } from "../model/Ride";
 
@@ -37,6 +37,14 @@ Riderouter.delete("/delete/:id", async (req: Request, res: Response) => {
     }
 }
 );
+
+Riderouter.get('/search',async (req:Request,res:Response)=>{
+    try{
+        await getallrides(req,res);
+    }catch{
+        res.status(500).json({error:'internal error'})
+    }
+})
 
 
 Riderouter.get("/:id", async (req: Request, res: Response) => {
