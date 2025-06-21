@@ -4,6 +4,7 @@ import { logger } from '../utils/logger';
 import { createRideSchema } from '../utils/validation';
 import mongoose from 'mongoose';
 import { getChannel } from '../utils/rabbitmq';
+import { invalidateRideCache } from '../config/invalidate';
 import { BookingRequest } from '../model/bookingrequest'; // new model
 import { ConfirmedRide } from '../model/confirmride'; // new model
 import {redis} from '../config/redis'
@@ -49,7 +50,22 @@ export const createRide = async (req: Request, res: Response) => {
             createdAt: new Date()
         });
 
+
         await ride.save();
+
+        // Invalidate cache for this route/date
+       const cachekey = `ride${ride.origin.city}to${ride.destination.city}date${ride.departureTime.toISOString().slice(0, 10)}`;
+
+        // Check if cache exists before invalidating
+        const cached = await redis.get(cachekey);
+        if (cached) {
+            await invalidateRideCache(
+                ride.origin.city,
+                ride.destination.city,
+                ride.departureTime.toISOString().slice(0, 10)
+            );
+        }
+
         logger.info(`New ride created with ID: ${ride._id}`);
         res.status(201).json({ success: true, data: ride });
     } catch (error) {
@@ -60,6 +76,10 @@ export const createRide = async (req: Request, res: Response) => {
 
 export const getallrides = async (req:Request,res:Response) => {
     const {from,to,date,seats}=req.query;
+    if(!from && !to && !date && !seats){
+        logger.warn('No search criteria provided');
+        return res.status(400).json({success:false,message:'Please provide at least one search criteria'});
+    }
 
     const cachekey = `ride${from}to${to}date${date}`
     try{
@@ -94,12 +114,18 @@ export const getallrides = async (req:Request,res:Response) => {
             query.availableSeats ={ $gte:Number(seats)};
         }
 
-        const rides = await Ride.find(query)
+        const rides = await Ride.find(
+            query
+        )
         .sort({departureTime:1})
         .select('-passengers');
 
         await redis.setex(cachekey,300,JSON.stringify(rides));
-        res.json(rides);
+        logger.info(`Fetched ${rides.length} rides from database`);
+        if(rides.length===0){
+            return res.status(404).json({success:false,message:'No rides found for the given criteria'})
+        }
+        res.json({success:true,rides});
     }catch(error){
         logger.error(`error fetching rides`,error);
         res.status(500).json({success:false,message:'Error fetching data'})

@@ -131,6 +131,11 @@ const RideSchema = new Schema({
 RideSchema.index({ departureTime: 1 });
 RideSchema.index({ "origin.city": 1 });
 RideSchema.index({ "destination.city": 1 });
+RideSchema.index({
+  'origin.city': 'text',
+  'destination.city': 'text',
+  // add other fields if needed
+});
 
 // Validate total booked seats don't exceed available seats
 RideSchema.pre('save', function(next) {
