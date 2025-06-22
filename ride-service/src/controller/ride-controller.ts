@@ -74,63 +74,133 @@ export const createRide = async (req: Request, res: Response) => {
     }
 };
 
-export const getallrides = async (req:Request,res:Response) => {
-    const {from,to,date,seats}=req.query;
-    if(!from && !to && !date && !seats){
+export const getallrides = async (req: Request, res: Response) => {
+    const { from, to, date, seats } = req.query;
+    const page = Number(req.query.page) > 0 ? Number(req.query.page) : 1;
+    const limit = Number(req.query.limit) > 0 ? Number(req.query.limit) : 6;
+    const skip = (page - 1) * limit;
+
+    if (!from && !to && !date && !seats) {
         logger.warn('No search criteria provided');
-        return res.status(400).json({success:false,message:'Please provide at least one search criteria'});
+        return res.status(400).json({ success: false, message: 'Please provide at least one search criteria' });
     }
 
-    const cachekey = `ride${from}to${to}date${date}`
-    try{
-        const cached=await redis.get(cachekey);
-        if(cached){
-            logger.info('Serving rides from cache')
-            return res.json(JSON.parse(cached))
+    // Cache key should NOT include page/limit
+    const cachekey = `ride${from}to${to}date${date}`;
+    try {
+        const cached = await redis.get(cachekey);
+        let allRides;
+        if (cached) {
+            logger.info('Serving rides from cache');
+            allRides = JSON.parse(cached);
+        } else {
+            const query: any = { status: 'available' };
+            if (from) query['origin.city'] = { $regex: new RegExp(String(from), 'i') };
+            if (to) query['destination.city'] = { $regex: new RegExp(String(to), 'i') };
+            if (date) {
+                const day = new Date(String(date));
+                const nextDay = new Date(day);
+                nextDay.setDate(day.getDate() + 1);
+                query.departureTime = { $gte: day, $lt: nextDay };
+            }
+            if (seats) query.availableSeats = { $gte: Number(seats) };
+
+            allRides = await Ride.find(query)
+                .sort({ departureTime: 1 })
+                .select('-passengers');
+            await redis.setex(cachekey, 300, JSON.stringify(allRides));
+            logger.info(`Fetched ${allRides.length} rides from database`);
         }
 
-        const query:any={
-            status:'available'
-        };
+        const total = allRides.length;
+        const rides = allRides.slice(skip, skip + limit);
 
-        if(from){
-            query['origin.city']={ $regex: new RegExp(String(from), 'i') };
+        if (rides.length === 0) {
+            return res.status(404).json({ success: false, message: 'No rides found for the given criteria' });
         }
-        if(to){
-            query['destination.city'] = { $regex: new RegExp(String(to), 'i') };
-        }
-        if(date){
-            const day = new Date(String(date));
-            const nextDay=new Date(day);
-            nextDay.setDate(day.getDate()+1);
-
-            query.departureTime={
-                $gte:day,
-                $lt:nextDay
-            };
-        }
-
-        if(seats){
-            query.availableSeats ={ $gte:Number(seats)};
-        }
-
-        const rides = await Ride.find(
-            query
-        )
-        .sort({departureTime:1})
-        .select('-passengers');
-
-        await redis.setex(cachekey,300,JSON.stringify(rides));
-        logger.info(`Fetched ${rides.length} rides from database`);
-        if(rides.length===0){
-            return res.status(404).json({success:false,message:'No rides found for the given criteria'})
-        }
-        res.json({success:true,rides});
-    }catch(error){
-        logger.error(`error fetching rides`,error);
-        res.status(500).json({success:false,message:'Error fetching data'})
+        res.json({
+            success: true,
+            rides,
+            page,
+            limit,
+            total,
+            totalPages: Math.ceil(total / limit)
+        });
+    } catch (error) {
+        logger.error(`error fetching rides`, error);
+        res.status(500).json({ success: false, message: 'Error fetching data' });
     }
 }
+
+// export const getallrides = async (req: Request, res: Response) => {
+//     const { from, to, date, seats } = req.query;
+//     // Always use default pagination if not provided
+//     const page = Number(req.query.page) > 0 ? Number(req.query.page) : 1;
+//     const limit = Number(req.query.limit) > 0 ? Number(req.query.limit) : 6;
+//     const skip = (page - 1) * limit;
+
+//     if (!from && !to && !date && !seats) {
+//         logger.warn('No search criteria provided');
+//         return res.status(400).json({ success: false, message: 'Please provide at least one search criteria' });
+//     }
+
+//     const cachekey = `ride${from}to${to}date${date}page${page}`;
+//     try {
+//         const cached = await redis.get(cachekey);
+//         if (cached) {
+//             logger.info('Serving rides from cache');
+//             return res.json({ success: true, rides: JSON.parse(cached) });
+//         }
+
+//         const query: any = { status: 'available' };
+
+//         if (from) {
+//             query['origin.city'] = { $regex: new RegExp(String(from), 'i') };
+//         }
+//         if (to) {
+//             query['destination.city'] = { $regex: new RegExp(String(to), 'i') };
+//         }
+//         if (date) {
+//             const day = new Date(String(date));
+//             const nextDay = new Date(day);
+//             nextDay.setDate(day.getDate() + 1);
+
+//             query.departureTime = {
+//                 $gte: day,
+//                 $lt: nextDay
+//             };
+//         }
+//         if (seats) {
+//             query.availableSeats = { $gte: Number(seats) };
+//         }
+
+//         const total = await Ride.countDocuments(query);
+
+//         const rides = await Ride.find(query)
+//             .sort({ departureTime: 1 })
+//             .skip(skip)
+//             .limit(limit)
+//             .select('-passengers');
+
+//         await redis.setex(cachekey, 300, JSON.stringify(rides));
+//         logger.info(`Fetched ${rides.length} rides from database`);
+//         if (rides.length === 0) {
+//             return res.status(404).json({ success: false, message: 'No rides found for the given criteria' });
+//         }
+//         res.json({
+//             success: true,
+//             rides,
+//             page,
+//             limit,
+//             total,
+//             totalPages: Math.ceil(total / limit)
+//         });
+//     } catch (error) {
+//         logger.error(`error fetching rides`, error);
+//         res.status(500).json({ success: false, message: 'Error fetching data' });
+//     }
+// };
+
 // Update ride details
 export const updateRide = async (req: Request, res: Response) => {
     logger.info(`Updating ride with ID: ${req.params.id}`);
