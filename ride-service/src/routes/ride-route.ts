@@ -6,6 +6,27 @@ import { Ride } from "../model/Ride";
 
 const Riderouter = Router();
 
+
+
+Riderouter.get('/search',async (req:Request,res:Response)=>{
+    try{
+        await getallrides(req,res);
+    }catch{
+        res.status(500).json({error:'internal error'})
+    }
+})
+
+
+Riderouter.get("/:id", async (req: Request, res: Response) => {
+    try {
+        await getRideById(req, res);
+    } catch (error) {
+        res.status(500).json({ error: 'Internal server error' });
+    }
+}
+);
+
+
 //@ts-ignore
 Riderouter.use(authenticateRequest);
 
@@ -38,23 +59,7 @@ Riderouter.delete("/delete/:id", async (req: Request, res: Response) => {
 }
 );
 
-Riderouter.get('/search',async (req:Request,res:Response)=>{
-    try{
-        await getallrides(req,res);
-    }catch{
-        res.status(500).json({error:'internal error'})
-    }
-})
 
-
-Riderouter.get("/:id", async (req: Request, res: Response) => {
-    try {
-        await getRideById(req, res);
-    } catch (error) {
-        res.status(500).json({ error: 'Internal server error' });
-    }
-}
-);
 
 Riderouter.post("/book/:id", async (req: Request, res: Response) => {
     try {

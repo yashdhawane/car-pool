@@ -98,14 +98,28 @@ app.use(
 
 const rideservice= process.env.RIDE_SERVICE_URL || 'http://localhost:3002';
 
+const skipAuthRegex = [
+  /^\/search(\/.*)?$/, // matches /search and subpaths (for search endpoint)
+  /^\/\w+$/            // matches /123, /abc, etc. (for ride details)
+];
+
+const conditionalValidateToken = (req: Request, res: Response, next: NextFunction) => {
+  logger.info(`Checking auth for path: ${req.path}`);
+  const shouldSkip = skipAuthRegex.some((regex) => regex.test(req.path));
+  logger.info(`Should skip auth: ${shouldSkip}`);
+  if (shouldSkip) return next(); // skip auth
+  return validateToken(req, res, next); // apply auth
+};
+
 app.use(
   //@ts-ignore
-  "/v1/rides",validateToken,
+  "/v1/rides",conditionalValidateToken,
   proxy(rideservice, {
     ...proxyOptions,
     proxyReqOptDecorator: (proxyReqOpts, srcReq) => {
       //@ts-ignore
       proxyReqOpts.headers["Content-Type"] = "application/json";
+      if(srcReq.user) {
       //@ts-ignore
       proxyReqOpts.headers["x-user-id"] = srcReq.user.userId;
       //@ts-ignore
@@ -114,7 +128,7 @@ app.use(
       proxyReqOpts.headers["x-user-email"] = srcReq.user.email;
       //@ts-ignore
       proxyReqOpts.headers["x-user-name"] = srcReq.user.name;
-      
+      }
 
       return proxyReqOpts;
     },
@@ -127,6 +141,7 @@ app.use(
     },
   })
 );
+
 
 
 app.use(errorHandler);
