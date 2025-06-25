@@ -3,6 +3,7 @@ import RefreshToken from '../model/Refresh';
 import { generateTokens } from '../utils/generatetoken';
 import { signupSchema, loginSchema,roleChangeSchema } from '../utils/validation';
 import {logger} from '../utils/logger';
+import DriverProfile from '../model/Driver';
 import { Request, Response } from 'express';
 import Redis from 'ioredis';
 
@@ -232,7 +233,7 @@ export const changeuserRole = async (req: Request, res: Response): Promise<Respo
     }
 
     // Create driver profile
-    const DriverProfile = await import('../model/Driver').then(m => m.default);
+    // const DriverProfile = await import('../model/Driver').then(m => m.default);
     const driverProfile = new DriverProfile({
       user: userId,
       ...req.body.driverProfile
