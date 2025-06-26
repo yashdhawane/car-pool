@@ -1,6 +1,7 @@
 import { Router, Request, Response } from "express";
-import { changeuserRole, loginUser, logoutUser, refreshTokenUser, registerUser } from "../controller/identity-controller";
+import { changeuserRole, getDriverById, loginUser, logoutUser, refreshTokenUser, registerUser } from "../controller/identity-controller";
 import { validateToken } from "../middleware/authvalidate";
+import { get } from "http";
 
 const Authrouter = Router(); // ✅ use Router() from express
 
@@ -48,6 +49,14 @@ Authrouter.post("/changerole", validateToken , async (req: Request, res: Respons
         // Implement logout logic here
         // Assuming you have a logoutUser function in your controller
         await changeuserRole(req, res);
+    } catch (error) {
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+Authrouter.get('/:driverId', async (req: Request, res: Response) => {
+    try {
+        await getDriverById(req, res);
     } catch (error) {
         res.status(500).json({ error: 'Internal server error' });
     }

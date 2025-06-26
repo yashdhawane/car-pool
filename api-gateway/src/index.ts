@@ -100,7 +100,7 @@ const rideservice= process.env.RIDE_SERVICE_URL || 'http://localhost:3002';
 
 const skipAuthRegex = [
   /^\/search(\/.*)?$/, // matches /search and subpaths (for search endpoint)
-  /^\/\w+$/            // matches /123, /abc, etc. (for ride details)
+  /^\/[a-fA-F0-9]{24}$/             // matches /123, /abc, etc. (for ride details)
 ];
 
 const conditionalValidateToken = (req: Request, res: Response, next: NextFunction) => {

@@ -281,3 +281,33 @@ export const changeuserRole = async (req: Request, res: Response): Promise<Respo
     });
   }
 }
+
+export const getDriverById = async (req: Request, res: Response): Promise<Response> => {
+  logger.info('Get driver by ID endpoint hit...');
+  const driverId = req.params.driverId;
+
+  try {
+    // const driver = await DriverProfile.findById(driverId);
+    const driver = await DriverProfile.findOne({ user: driverId }).populate('user', 'name email ');
+
+    if (!driver) {
+      logger.warn('Driver not found');
+      return res.status(404).json({
+        success: false,
+        message: 'Driver not found'
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      data:driver
+    });
+
+  } catch (error) {
+    logger.error('Error fetching driver:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error'
+    });
+  }
+};
