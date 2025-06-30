@@ -437,6 +437,45 @@ export const bookRide = async (req: Request, res: Response) => {
 };
 
 
+export const getUserBookingRequests = async (req: Request, res: Response) => {
+    logger.info(`Fetching booking requests for user ${req.user?.userId}`);
+     try {
+    const userId = req.user?.userId;
+    const rideId = req.params.rideId || req.query.rideId; // accept rideId via param or query
+
+    if (!userId || !rideId) {
+      return res.status(400).json({
+        success: false,
+        message: "Missing user or ride information",
+      });
+    }
+
+    const booking = await BookingRequest.findOne({
+      passengerId: userId,
+      rideId: rideId,
+    }).select("-__v");
+
+    if (!booking) {
+      return res.status(404).json({
+        success: true,
+        alreadyBooked: false,
+        message: "No booking found for this ride by the user.",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      alreadyBooked: true,
+      data: booking,
+    });
+  } catch (err) {
+    console.error("Error fetching booking request:", err);
+    return res.status(500).json({
+      success: false,
+      message: "Server error while fetching booking request.",
+    });
+  }
+}
 
 export const getDriverRequests = async (req: Request, res: Response) => {
   try {

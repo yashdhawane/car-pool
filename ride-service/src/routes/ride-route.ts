@@ -1,5 +1,5 @@
 import { Router ,Request,Response } from "express";
-import { bookRide, confirmRide, createRide, deleteRide, generateRideOTP, getallrides, getDriverRequests, getRideById, handleBookingRequest, updateRide } from "../controller/ride-controller";
+import { bookRide, confirmRide, createRide, deleteRide, generateRideOTP, getallrides, getDriverRequests, getRideById, getUserBookingRequests, handleBookingRequest, updateRide } from "../controller/ride-controller";
 import { authenticateRequest } from "../middleware/authvalidate";
 import { Ride } from "../model/Ride";
 
@@ -70,6 +70,15 @@ Riderouter.post("/book/:id", async (req: Request, res: Response) => {
     }
 }
 );
+
+
+Riderouter.get('/:rideId/booking-status', async (req: Request, res: Response) => {
+    try {
+        await getUserBookingRequests(req, res);
+    } catch (error) {
+        res.status(500).json({ error: 'Internal server error' });
+    }
+})
 
 Riderouter.get('/driver/booking-request', async (req: Request, res: Response) => {
     try{
