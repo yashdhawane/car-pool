@@ -260,6 +260,34 @@ export const deleteRide = async (req: Request, res: Response) => {
     }
 };
 
+
+export const getridesbyDriverId = async (req: Request, res: Response) => {
+    logger.info(`Fetching rides for driver ID: ${req.params.driverId}`);
+    try {
+        // Ensure user is authenticated and is a driver
+        if (!req.user || !req.user.userId) {
+            logger.warn('Access attempted without user ID');
+            return res.status(401).json({ success: false, message: 'Authentication required' });
+        }
+        if (req.user.role !== 'driver' && req.user.role !== 'both') {
+            logger.warn(`User ${req.user.userId} with role ${req.user.role} attempted to fetch driver rides`);
+            return res.status(403).json({ success: false, message: 'Only drivers can view their rides' });
+        }
+
+        // Fetch rides where driverId matches the logged-in user
+        const rides = await Ride.find({ driverId: req.user.userId }).sort({ departureTime: -1 });
+
+        res.status(200).json({
+            success: true,
+            count: rides.length,
+            rides
+        });
+    } catch (error) {
+        logger.error('Error fetching rides for driver:', error);
+        res.status(500).json({ success: false, message: 'Failed to fetch driver rides' });
+    }
+};
+
 // Get ride by ID
 export const getRideById = async (req: Request, res: Response) => {
     logger.info(`Fetching ride details for ID: ${req.params.id}`);
